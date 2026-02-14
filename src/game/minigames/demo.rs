@@ -2,27 +2,14 @@ use bevy::prelude::*;
 
 use crate::{
     AppSystems,
-    asset_tracking::LoadResource,
     game::{events::MinigameFinished, game_state::GameState},
 };
 
-#[derive(Asset, Clone, Reflect, Resource)]
-#[reflect(Resource)]
-pub struct DemoAssets {
-    background: Handle<Image>,
-}
+pub const MINIGAME_KEY: &'static str = "demo";
 
-impl FromWorld for DemoAssets {
-    fn from_world(world: &mut World) -> Self {
-        let mut texture_atlas_layouts = world.resource_mut::<Assets<TextureAtlasLayout>>();
-
-        let asset_server = world.resource::<AssetServer>();
-
-        Self {
-            background: asset_server.load("images/catch_background.png"),
-        }
-    }
-}
+#[derive(Component)]
+#[require(Sprite, Transform)]
+struct Stage;
 
 fn end_game(mut commands: Commands, input: Res<ButtonInput<KeyCode>>) {
     if input.just_pressed(KeyCode::Enter) {
@@ -33,15 +20,28 @@ fn end_game(mut commands: Commands, input: Res<ButtonInput<KeyCode>>) {
     }
 }
 
-pub fn spawn_minigame(demo_assets: Res<DemoAssets>) -> impl Bundle {
-    (Sprite::from_image(demo_assets.background.clone()),)
+fn stage_added(
+    observe_assets: Res<super::observe::ObserveAssets>,
+    mut stage_query: Query<&mut Sprite, Added<Stage>>,
+) {
+    let Ok(mut sprite) = stage_query.single_mut() else {
+        return;
+    };
+
+    sprite.image = observe_assets.background.clone();
+}
+
+pub fn spawn_minigame() -> impl Bundle {
+    Stage
 }
 
 pub fn plugin(app: &mut App) {
-    app.load_resource::<DemoAssets>();
-
     app.add_systems(
         Update,
-        (end_game.in_set(AppSystems::RecordInput)).run_if(in_state(GameState::Minigame)),
+        (
+            stage_added.in_set(AppSystems::Update),
+            (end_game.in_set(AppSystems::RecordInput),)
+                .run_if(in_state(GameState::Minigame(MINIGAME_KEY.to_string()))),
+        ),
     );
 }

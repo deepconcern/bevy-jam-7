@@ -3,9 +3,9 @@
 // Disable console on Windows for non-dev builds.
 #![cfg_attr(not(feature = "dev"), windows_subsystem = "windows")]
 
-mod asset_tracking;
+// mod asset_tracking;
 mod audio;
-mod demo;
+// mod demo;
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod game;
@@ -14,6 +14,9 @@ mod screens;
 mod theme;
 
 use bevy::{asset::AssetMetaCheck, camera::ScalingMode, prelude::*};
+use bevy_asset_loader::prelude::*;
+
+use crate::screens::Screen;
 
 pub const GAME_HEIGHT: f32 = 9.0 * 16.0;
 pub const GAME_WIDTH: f32 = 16.0 * 16.0;
@@ -27,6 +30,9 @@ pub struct AppPlugin;
 impl Plugin for AppPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ClearColor(Color::BLACK));
+
+        // Set up loading state
+        app.add_loading_state(LoadingState::new(Screen::Loading).continue_to_state(Screen::Title));
 
         // Add Bevy plugins.
         app.add_plugins(
@@ -52,9 +58,7 @@ impl Plugin for AppPlugin {
 
         // Add other plugins.
         app.add_plugins((
-            asset_tracking::plugin,
             audio::plugin,
-            demo::plugin,
             #[cfg(feature = "dev")]
             dev_tools::plugin,
             game::plugin,
@@ -103,6 +107,10 @@ struct Pause(pub bool);
 /// A system set for systems that shouldn't run while the game is paused.
 #[derive(SystemSet, Copy, Clone, Eq, PartialEq, Hash, Debug)]
 struct PausableSystems;
+
+fn app_is_loaded(screen: Res<State<Screen>>) -> bool {
+    screen.get() != &Screen::Splash && screen.get() != &Screen::Loading
+}
 
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((

@@ -1,8 +1,9 @@
 //! The credits menu.
 
 use bevy::{ecs::spawn::SpawnIter, input::common_conditions::input_just_pressed, prelude::*};
+use bevy_asset_loader::prelude::*;
 
-use crate::{asset_tracking::LoadResource, audio::music, menus::Menu, theme::prelude::*};
+use crate::{audio::music, menus::Menu, screens::Screen, theme::prelude::*};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Menu::Credits), spawn_credits_menu);
@@ -11,13 +12,15 @@ pub(super) fn plugin(app: &mut App) {
         go_back.run_if(in_state(Menu::Credits).and(input_just_pressed(KeyCode::Escape))),
     );
 
-    app.load_resource::<CreditsAssets>();
+    app.configure_loading_state(
+        LoadingStateConfig::new(Screen::Loading).load_collection::<CreditsAssets>(),
+    );
     app.add_systems(OnEnter(Menu::Credits), start_credits_music);
 }
 
 fn spawn_credits_menu(mut commands: Commands) {
     commands.spawn((
-        widget::ui_root("Credits Menu"),
+        widget::ui_root("Credits Menu", false),
         GlobalZIndex(2),
         DespawnOnExit(Menu::Credits),
         children![
@@ -36,10 +39,6 @@ fn created_by() -> impl Bundle {
 
 fn assets() -> impl Bundle {
     grid(vec![
-        // ["Art", "Wyatt Barnes"],
-        // ["Music", "Wyatt Barnes"],
-        // ["Ducky sprite", "CC0 by Caz Creates Games"],
-        // ["Button SFX", "CC0 by Jaszunio15"],
         [
             "\"Press Start 2P\" Font",
             "cody@zone38.net (SIL OPEN FONT LICENSE V1.1)",
@@ -87,20 +86,10 @@ fn go_back(mut next_menu: ResMut<NextState<Menu>>) {
     next_menu.set(Menu::Main);
 }
 
-#[derive(Resource, Asset, Clone, Reflect)]
-#[reflect(Resource)]
+#[derive(AssetCollection, Resource)]
 struct CreditsAssets {
-    #[dependency]
+    #[asset(path = "audio/music/Monkeys Spinning Monkeys.ogg")]
     music: Handle<AudioSource>,
-}
-
-impl FromWorld for CreditsAssets {
-    fn from_world(world: &mut World) -> Self {
-        let assets = world.resource::<AssetServer>();
-        Self {
-            music: assets.load("audio/music/Monkeys Spinning Monkeys.ogg"),
-        }
-    }
 }
 
 fn start_credits_music(mut commands: Commands, credits_music: Res<CreditsAssets>) {

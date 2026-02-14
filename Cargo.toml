@@ -6,6 +6,7 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.18" }
+bevy_asset_loader = { version = "0.25.0", features = ["2d"] }
 rand = "0.9"
 # Compile out low-severity logs to improve performance.
 # Remove these features if you want to profile your game with tracy.
@@ -22,6 +23,7 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 # Default to a native dev build.
 default = ["dev_native"]
 dev = [
+    "bevy/debug",
     # Improve compile times for dev builds by linking Bevy as a dynamic library.
     "bevy/dynamic_linking",
     "bevy/bevy_dev_tools",

@@ -2,7 +2,7 @@
 
 mod credits;
 mod main;
-mod pause;
+pub mod pause;
 mod settings;
 
 use bevy::prelude::*;

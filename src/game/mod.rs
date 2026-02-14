@@ -1,5 +1,6 @@
+mod animation;
 mod events;
-mod game_assets;
+pub mod game_assets;
 mod game_state;
 mod minigames;
 mod transition;
@@ -16,8 +17,7 @@ use crate::{
         },
         game_assets::GameAssets,
         game_state::GameState,
-        minigames::demo::DemoAssets,
-        transition::{Transition, TransitionAssets},
+        transition::Transition,
         ui::{GAME_OVER_FEVER, NO_FEVER, Thermometer, thermometer},
     },
     screens::Screen,
@@ -45,34 +45,38 @@ struct Minigame;
 
 fn test_new_minigame(mut commands: Commands, input: Res<ButtonInput<KeyCode>>) {
     if input.just_pressed(KeyCode::Space) {
-        commands.trigger(NewMinigame("demo".to_string()));
+        commands.trigger(NewMinigame(minigames::relieve::MINIGAME_KEY.to_string()));
+    }
+}
+
+pub fn in_minigame(minigame_key: &'static str) -> impl Fn(Res<State<GameState>>) -> bool {
+    move |game_state: Res<State<GameState>>| -> bool {
+        game_state.get() == &GameState::Minigame(minigame_key.to_string())
     }
 }
 
 pub(super) fn plugin(app: &mut App) {
     app.init_state::<GameState>();
+
     app.add_observer(
         |trigger: On<MinigameFinished>,
          mut commands: Commands,
-         mut next_state: ResMut<NextState<GameState>>,
-         transition_assets: Res<TransitionAssets>| {
-            commands.spawn(Transition::fade_out(trigger.0, transition_assets));
+         mut next_state: ResMut<NextState<GameState>>| {
+            commands.spawn(Transition::fade_out(trigger.0));
             next_state.set(GameState::Transitioning);
         },
     );
     app.add_observer(
         |trigger: On<NewMinigame>,
          mut commands: Commands,
-         transition_assets: Res<TransitionAssets>,
          mut next_state: ResMut<NextState<GameState>>| {
-            commands.spawn(Transition::fade_in(&trigger.0, transition_assets));
+            commands.spawn(Transition::fade_in(&trigger.0));
             next_state.set(GameState::Transitioning);
         },
     );
     app.add_observer(
         |trigger: On<SpawnMinigame>,
          mut commands: Commands,
-         demo_assets: Res<DemoAssets>,
          main_stage_query: Query<Entity, With<MainStage>>| {
             let Ok(main_stage_entity) = main_stage_query.single() else {
                 return;
@@ -83,12 +87,10 @@ pub(super) fn plugin(app: &mut App) {
                     Minigame,
                     Name::new(format!("Minigame \"{}\"", trigger.0)),
                     Transform::from_xyz(0.0, 0.0, 10.0),
-                    match trigger.0.as_str() {
-                        "demo" => minigames::demo::spawn_minigame(demo_assets),
-                        _ => panic!("No minigame with key: {}", trigger.0),
-                    },
                 ))
                 .id();
+
+            minigames::spawn_minigame(&trigger.0, &mut commands.entity(minigame_entity));
 
             commands
                 .entity(main_stage_entity)
@@ -147,14 +149,25 @@ pub(super) fn plugin(app: &mut App) {
                 commands
                     .entity(main_stage_entity)
                     .add_child(finished_screen_entity);
+
+                commands.spawn((
+                    crate::theme::widget::ui_root("", true),
+                    GlobalZIndex(0),
+                    DespawnOnExit(Screen::Gameplay),
+                    children![crate::theme::widget::button(
+                        "Quit to title",
+                        crate::menus::pause::quit_to_title
+                    ),],
+                ));
             }
 
             commands.trigger(ResultsSpawned(is_game_finished));
         },
     );
     app.add_plugins((
+        animation::plugin,
         game_assets::plugin,
-        minigames::demo::plugin,
+        minigames::plugin,
         transition::plugin,
         ui::plugin,
     ));
@@ -195,7 +208,7 @@ pub fn spawn_game(
         DespawnOnExit(Screen::Gameplay),
         Name::new("Game UI"),
         Sprite::from_image(game_assets.ui_background.clone()),
-        Transform::from_xyz(UI_WIDTH / 2.0, UI_HEIGHT / 2.0, 1.0),
+        Transform::from_xyz(UI_WIDTH / 2.0, UI_HEIGHT / 2.0, 50.0),
         children![
             (
                 Text2d::new("TIMER"),

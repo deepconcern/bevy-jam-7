@@ -6,12 +6,26 @@ use bevy::{
     ecs::{spawn::SpawnWith, system::IntoObserverSystem},
     prelude::*,
 };
+use bevy_asset_loader::prelude::*;
 
-use crate::theme::{interaction::InteractionPalette, palette::*};
+use crate::{
+    AppSystems, app_is_loaded,
+    game::game_assets::GameAssets,
+    screens::Screen,
+    theme::{interaction::InteractionPalette, palette::*},
+};
+
+#[derive(Component)]
+struct UiRoot(bool);
+
+#[derive(Component)]
+struct Widget;
 
 /// A root UI node that fills the window and centers its content.
-pub fn ui_root(name: impl Into<Cow<'static, str>>) -> impl Bundle {
+pub fn ui_root(name: impl Into<Cow<'static, str>>, hide_background: bool) -> impl Bundle {
     (
+        Widget,
+        UiRoot(hide_background),
         Name::new(name),
         Node {
             position_type: PositionType::Absolute,
@@ -31,6 +45,7 @@ pub fn ui_root(name: impl Into<Cow<'static, str>>) -> impl Bundle {
 /// A simple header label. Bigger than [`label`].
 pub fn header(text: impl Into<String>) -> impl Bundle {
     (
+        Widget,
         Name::new("Header"),
         Text(text.into()),
         TextFont::from_font_size(40.0),
@@ -41,6 +56,7 @@ pub fn header(text: impl Into<String>) -> impl Bundle {
 /// A simple text label.
 pub fn label(text: impl Into<String>) -> impl Bundle {
     (
+        Widget,
         Name::new("Label"),
         Text(text.into()),
         TextFont::from_font_size(24.0),
@@ -117,6 +133,7 @@ where
                         pressed: BUTTON_PRESSED_BACKGROUND,
                     },
                     children![(
+                        Widget,
                         Name::new("Button Text"),
                         Text(text),
                         TextFont::from_font_size(40.0),
@@ -129,4 +146,48 @@ where
                 .observe(action);
         })),
     )
+}
+
+fn widget_font_added(
+    game_assets: Res<GameAssets>,
+    text_font_query: Query<&mut TextFont, Added<Widget>>,
+) {
+    for mut text_font in text_font_query {
+        text_font.font = game_assets.font.clone();
+    }
+}
+
+fn ui_root_added(
+    mut commands: Commands,
+    ui_root_query: Query<(Entity, &UiRoot), Added<UiRoot>>,
+    widget_assets: Res<WidgetAssets>,
+) {
+    for (ui_root_entity, ui_root) in ui_root_query {
+        if ui_root.0 {
+            continue;
+        }
+
+        commands
+            .entity(ui_root_entity)
+            .insert(ImageNode::new(widget_assets.main_bg.clone()));
+    }
+}
+
+#[derive(AssetCollection, Resource)]
+struct WidgetAssets {
+    #[asset(path = "images/title_screen.png")]
+    main_bg: Handle<Image>,
+}
+
+pub(super) fn plugin(app: &mut App) {
+    app.configure_loading_state(
+        LoadingStateConfig::new(Screen::Loading).load_collection::<WidgetAssets>(),
+    );
+
+    app.add_systems(
+        Update,
+        (ui_root_added, widget_font_added)
+            .in_set(AppSystems::Update)
+            .run_if(app_is_loaded),
+    );
 }

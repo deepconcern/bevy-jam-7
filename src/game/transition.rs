@@ -1,16 +1,17 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
+use bevy_asset_loader::prelude::*;
 
 use crate::{
-    AppSystems, PausableSystems,
-    asset_tracking::LoadResource,
+    AppSystems, PausableSystems, app_is_loaded,
     game::{
         MAIN_STAGE_HEIGHT, MAIN_STAGE_WIDTH,
         events::{
             InterludeStart, MinigameSpawned, MinigameStart, ResultsSpawned, SpawnMinigame,
             SpawnResults,
         },
+        game_assets::GameAssets,
         game_state::GameState,
     },
     screens::Screen,
@@ -20,8 +21,6 @@ const ANIMATION_SPEED: u64 = 100;
 const FADE_IN_END_FRAME: usize = 14;
 const FADE_IN_PAUSE_FRAME: usize = 7;
 const FADE_IN_START_FRAME: usize = 0;
-const TRANSITION_HEIGHT: f32 = 9.0 * 16.0;
-const TRANSITION_WIDTH: f32 = 12.0 * 16.0;
 
 #[derive(Clone)]
 pub enum TransitionState {
@@ -40,6 +39,7 @@ pub enum TransitionType {
 }
 
 #[derive(Component)]
+#[require(Sprite, Transform)]
 pub struct Transition {
     pub state: TransitionState,
     pub timer: Timer,
@@ -47,31 +47,49 @@ pub struct Transition {
 }
 
 impl Transition {
-    fn new(
-        transition_type: TransitionType,
+    fn added(
+        game_assets: Res<GameAssets>,
+        mut text_font_query: Query<&mut TextFont>,
         transition_assets: Res<TransitionAssets>,
-    ) -> impl Bundle {
-        let (start_frame, text) = match &transition_type {
-            TransitionType::FadeIn(minigame) => (FADE_IN_START_FRAME, minigame.to_uppercase()),
-            TransitionType::FadeOut(has_won) => (
-                FADE_IN_END_FRAME,
+        transition_query: Query<(&Children, &mut Sprite, &Transition), Added<Transition>>,
+    ) {
+        for (children, mut sprite, transition) in transition_query {
+            let start_frame = match &transition.transition_type {
+                TransitionType::FadeIn(_) => FADE_IN_START_FRAME,
+                TransitionType::FadeOut(_) => FADE_IN_END_FRAME,
+            };
+
+            let Some(child) = children.first() else {
+                continue;
+            };
+
+            let Ok(mut text_font) = text_font_query.get_mut(*child) else {
+                continue;
+            };
+
+            sprite.image = transition_assets.transition.clone();
+            sprite.texture_atlas = Some(TextureAtlas {
+                layout: transition_assets.transition_layout.clone(),
+                index: start_frame,
+            });
+            text_font.font = game_assets.font.clone();
+        }
+    }
+
+    fn new(transition_type: TransitionType) -> impl Bundle {
+        let text = match &transition_type {
+            TransitionType::FadeIn(minigame) => minigame.to_uppercase(),
+            TransitionType::FadeOut(has_won) => {
                 if *has_won {
                     "WIN!\nFEVER\nDOWN".to_string()
                 } else {
                     "LOSE!\nFEVER\nUP".to_string()
-                },
-            ),
+                }
+            }
         };
 
         (
             DespawnOnExit(Screen::Gameplay),
-            Sprite::from_atlas_image(
-                transition_assets.transition.clone(),
-                TextureAtlas {
-                    layout: transition_assets.transition_layout.clone(),
-                    index: start_frame,
-                },
-            ),
             Transform::from_xyz(
                 64.0 + (MAIN_STAGE_WIDTH / 2.0),
                 MAIN_STAGE_HEIGHT / 2.0,
@@ -90,54 +108,25 @@ impl Transition {
                     offset: Vec2::new(5.0, 5.0),
                 },
                 TextColor(Color::BLACK),
-                TextFont {
-                    font: transition_assets.font.clone(),
-                    ..default()
-                },
             )],
         )
     }
 
-    pub fn fade_in(minigame: &str, transition_assets: Res<TransitionAssets>) -> impl Bundle {
-        Self::new(
-            TransitionType::FadeIn(minigame.to_string()),
-            transition_assets,
-        )
+    pub fn fade_in(minigame: &str) -> impl Bundle {
+        Self::new(TransitionType::FadeIn(minigame.to_string()))
     }
 
-    pub fn fade_out(has_won: bool, transition_assets: Res<TransitionAssets>) -> impl Bundle {
-        Self::new(TransitionType::FadeOut(has_won), transition_assets)
+    pub fn fade_out(has_won: bool) -> impl Bundle {
+        Self::new(TransitionType::FadeOut(has_won))
     }
 }
 
-#[derive(Asset, Clone, Reflect, Resource)]
-#[reflect(Resource)]
+#[derive(AssetCollection, Resource)]
 pub struct TransitionAssets {
-    pub font: Handle<Font>,
+    #[asset(path = "images/dream_transition.png")]
     pub transition: Handle<Image>,
+    #[asset(texture_atlas_layout(tile_size_x = 192, tile_size_y = 144, columns = 4, rows = 4))]
     pub transition_layout: Handle<TextureAtlasLayout>,
-}
-
-impl FromWorld for TransitionAssets {
-    fn from_world(world: &mut World) -> Self {
-        let mut texture_atlas_layouts = world.resource_mut::<Assets<TextureAtlasLayout>>();
-
-        let transition_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
-            UVec2::new(TRANSITION_WIDTH as u32, TRANSITION_HEIGHT as u32),
-            4,
-            4,
-            None,
-            None,
-        ));
-
-        let asset_server = world.resource::<AssetServer>();
-
-        Self {
-            font: asset_server.load("fonts/PressStart2P-Regular.ttf"),
-            transition: asset_server.load("images/dream_transition.png"),
-            transition_layout,
-        }
-    }
 }
 
 fn transition_animate(
@@ -168,12 +157,12 @@ fn transition_animate(
 
             if texture_atlas.index == FADE_IN_PAUSE_FRAME {
                 transition.state = TransitionState::Paused;
-                match transition.transition_type.clone() {
+                match &transition.transition_type {
                     TransitionType::FadeIn(minigame) => {
                         commands.trigger(SpawnMinigame(minigame.clone()));
                     }
                     TransitionType::FadeOut(has_won) => {
-                        commands.trigger(SpawnResults(has_won));
+                        commands.trigger(SpawnResults(*has_won));
                     }
                 }
             } else {
@@ -184,10 +173,10 @@ fn transition_animate(
             texture_atlas.index = next_index;
 
             if texture_atlas.index == end_frame {
-                match transition.transition_type {
-                    TransitionType::FadeIn(_) => {
+                match &transition.transition_type {
+                    TransitionType::FadeIn(minigame_key) => {
                         commands.trigger(MinigameStart);
-                        next_state.set(GameState::Minigame);
+                        next_state.set(GameState::Minigame(minigame_key.clone()));
                     }
                     TransitionType::FadeOut(_) => {
                         commands.trigger(InterludeStart);
@@ -216,7 +205,9 @@ fn transition_timer(time: Res<Time>, mut transition_query: Query<&mut Transition
 }
 
 pub(super) fn plugin(app: &mut App) {
-    app.load_resource::<TransitionAssets>();
+    app.configure_loading_state(
+        LoadingStateConfig::new(Screen::Loading).load_collection::<TransitionAssets>(),
+    );
 
     app.add_observer(
         |_: On<MinigameSpawned>, mut transition_query: Query<&mut Transition>| {
@@ -243,9 +234,13 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            transition_timer.in_set(AppSystems::TickTimers),
-            transition_animate.in_set(AppSystems::Update),
+            Transition::added,
+            (
+                transition_timer.in_set(AppSystems::TickTimers),
+                transition_animate.in_set(AppSystems::Update),
+            )
+                .in_set(PausableSystems),
         )
-            .in_set(PausableSystems),
+            .run_if(app_is_loaded),
     );
 }

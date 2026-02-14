@@ -1,65 +1,38 @@
 use bevy::prelude::*;
+use bevy_asset_loader::{
+    asset_collection::AssetCollection,
+    loading_state::{
+        LoadingStateAppExt,
+        config::{ConfigureLoadingState, LoadingStateConfig},
+    },
+};
 
-use crate::asset_tracking::LoadResource;
+use crate::screens::Screen;
 
-const THERMOMETER_HEIGHT: f32 = 32.0;
-const THERMOMETER_WIDTH: f32 = 64.0;
-const THERMOMETER_NUMBER_HEIGHT: f32 = 16.0;
-const THERMOMETER_NUMBER_WIDTH: f32 = 8.0;
-
-#[derive(Asset, Clone, Reflect, Resource)]
-#[reflect(Resource)]
+#[derive(AssetCollection, Resource)]
 pub struct GameAssets {
+    #[asset(path = "fonts/PressStart2P-Regular.ttf")]
     pub font: Handle<Font>,
+    #[asset(path = "images/intermission.png")]
     pub interlude_background: Handle<Image>,
+    #[asset(path = "images/lose_screen.png")]
     pub lose_screen: Handle<Image>,
+    #[asset(path = "images/thermometer.png")]
     pub thermometer: Handle<Image>,
+    #[asset(texture_atlas_layout(tile_size_x = 64, tile_size_y = 32, columns = 2, rows = 2))]
     pub thermometer_layout: Handle<TextureAtlasLayout>,
+    #[asset(path = "images/thermometer_numbers.png")]
     pub thermometer_numbers: Handle<Image>,
+    #[asset(texture_atlas_layout(tile_size_x = 8, tile_size_y = 16, columns = 10, rows = 1))]
     pub thermometer_numbers_layout: Handle<TextureAtlasLayout>,
+    #[asset(path = "images/ui.png")]
     pub ui_background: Handle<Image>,
+    #[asset(path = "images/win_screen.png")]
     pub win_screen: Handle<Image>,
 }
 
-impl FromWorld for GameAssets {
-    fn from_world(world: &mut World) -> Self {
-        let mut texture_atlas_layouts = world.resource_mut::<Assets<TextureAtlasLayout>>();
-
-        let thermometer_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
-            UVec2::new(THERMOMETER_WIDTH as u32, THERMOMETER_HEIGHT as u32),
-            2,
-            2,
-            None,
-            None,
-        ));
-
-        let thermometer_numbers_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
-            UVec2::new(
-                THERMOMETER_NUMBER_WIDTH as u32,
-                THERMOMETER_NUMBER_HEIGHT as u32,
-            ),
-            10,
-            1,
-            None,
-            None,
-        ));
-
-        let asset_server = world.resource::<AssetServer>();
-
-        Self {
-            font: asset_server.load("fonts/PressStart2P-Regular.ttf"),
-            interlude_background: asset_server.load("images/intermission.png"),
-            lose_screen: asset_server.load("images/lose_screen.png"),
-            thermometer: asset_server.load("images/thermometer.png"),
-            thermometer_layout,
-            thermometer_numbers: asset_server.load("images/thermometer_numbers.png"),
-            thermometer_numbers_layout,
-            ui_background: asset_server.load("images/ui.png"),
-            win_screen: asset_server.load("images/win_screen.png"),
-        }
-    }
-}
-
 pub(super) fn plugin(app: &mut App) {
-    app.load_resource::<GameAssets>();
+    app.configure_loading_state(
+        LoadingStateConfig::new(Screen::Loading).load_collection::<GameAssets>(),
+    );
 }

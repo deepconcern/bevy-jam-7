@@ -14,7 +14,7 @@ pub(super) fn plugin(app: &mut App) {
 
 fn spawn_pause_menu(mut commands: Commands) {
     commands.spawn((
-        widget::ui_root("Pause Menu"),
+        widget::ui_root("Pause Menu", true),
         GlobalZIndex(2),
         DespawnOnExit(Menu::Pause),
         children![
@@ -34,7 +34,7 @@ fn close_menu(_: On<Pointer<Click>>, mut next_menu: ResMut<NextState<Menu>>) {
     next_menu.set(Menu::None);
 }
 
-fn quit_to_title(_: On<Pointer<Click>>, mut next_screen: ResMut<NextState<Screen>>) {
+pub fn quit_to_title(_: On<Pointer<Click>>, mut next_screen: ResMut<NextState<Screen>>) {
     next_screen.set(Screen::Title);
 }
 
