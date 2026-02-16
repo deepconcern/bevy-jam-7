@@ -6,6 +6,7 @@ use rand::seq::IndexedRandom;
 use crate::{
     AppSystems, PausableSystems,
     game::{events::NewMinigame, game_state::GameState, minigames::MINIGAME_KEYS},
+    screens::Screen,
 };
 
 const WAIT_TIME: u64 = 3000;
@@ -51,6 +52,6 @@ pub(super) fn plugin(app: &mut App) {
         MinigameManager::tick
             .in_set(AppSystems::TickTimers)
             .in_set(PausableSystems)
-            .run_if(in_state(GameState::Interlude)),
+            .run_if(in_state(GameState::Interlude).and(in_state(Screen::Gameplay))),
     );
 }

@@ -1,11 +1,8 @@
-use std::time::Duration;
-
 use bevy::{
     math::bounding::{Aabb2d, IntersectsVolume},
     prelude::*,
 };
 use bevy_asset_loader::prelude::*;
-use rand::Rng;
 
 use crate::{
     AppSystems, PausableSystems, app_is_loaded,

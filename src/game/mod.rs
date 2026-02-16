@@ -11,7 +11,7 @@ mod ui;
 use bevy::prelude::*;
 
 use crate::{
-    AppSystems,
+    AppSystems, PausableSystems, app_is_loaded,
     game::{
         events::{
             MinigameFinished, MinigameSpawned, NewMinigame, ResultsSpawned, SpawnMinigame,
@@ -28,6 +28,8 @@ use crate::{
 };
 
 const FEVER_INCREMENT: f32 = 0.5;
+const PLAYER_X: f32 = -18.0;
+const PLAYER_Y: f32 = 4.0;
 
 // Sizes
 pub const MAIN_STAGE_HEIGHT: f32 = 9.0 * 16.0;
@@ -46,6 +48,47 @@ struct MainStage;
 
 #[derive(Component)]
 struct Minigame;
+
+#[derive(Component)]
+#[require(Sprite, Transform)]
+struct Player;
+
+impl Player {
+    fn added(game_assets: Res<GameAssets>, player_query: Query<&mut Sprite, Added<Player>>) {
+        for mut sprite in player_query {
+            sprite.image = game_assets.player.clone();
+            sprite.texture_atlas = Some(TextureAtlas {
+                layout: game_assets.player_layout.clone(),
+                index: 0,
+            });
+        }
+    }
+
+    fn new() -> impl Bundle {
+        (Player, Transform::from_xyz(PLAYER_X, PLAYER_Y, 10.0))
+    }
+
+    fn render(
+        mut player_query: Query<&mut Sprite, With<Player>>,
+        thermometer_query: Query<&Thermometer>,
+    ) {
+        for thermometer in thermometer_query {
+            for mut sprite in player_query.iter_mut() {
+                let Some(texture_atlas) = sprite.texture_atlas.as_mut() else {
+                    continue;
+                };
+
+                texture_atlas.index = if thermometer.is_fever_high() {
+                    2
+                } else if thermometer.is_fever_low() {
+                    1
+                } else {
+                    0
+                };
+            }
+        }
+    }
+}
 
 fn test_new_minigame(
     mut commands: Commands,
@@ -81,7 +124,6 @@ pub(super) fn plugin(app: &mut App) {
     app.add_observer(
         |_: On<NewMinigame>,
          mut commands: Commands,
-         minigame_manager: Res<MinigameManager>,
          mut next_state: ResMut<NextState<GameState>>| {
             commands.spawn(Transition::fade_in());
             next_state.set(GameState::Transitioning);
@@ -125,6 +167,7 @@ pub(super) fn plugin(app: &mut App) {
          game_assets: Res<GameAssets>,
          main_stage_query: Query<Entity, With<MainStage>>,
          minigame_query: Query<Entity, With<Minigame>>,
+         player_query: Query<Entity, With<Player>>,
          mut thermometer_query: Query<&mut Thermometer>| {
             let Ok(main_stage_entity) = main_stage_query.single() else {
                 return;
@@ -157,14 +200,16 @@ pub(super) fn plugin(app: &mut App) {
 
             if is_game_finished {
                 let finished_screen_entity = commands
-                    .spawn(
-                        (Sprite::from_image(if has_won {
-                            game_assets.win_screen.clone()
-                        } else {
-                            game_assets.lose_screen.clone()
-                        })),
-                    )
+                    .spawn(Sprite::from_image(if has_won {
+                        game_assets.win_screen.clone()
+                    } else {
+                        game_assets.lose_screen.clone()
+                    }))
                     .id();
+
+                for player_entity in player_query {
+                    commands.entity(player_entity).despawn();
+                }
 
                 commands
                     .entity(main_stage_entity)
@@ -172,12 +217,12 @@ pub(super) fn plugin(app: &mut App) {
 
                 commands.spawn((
                     crate::theme::widget::ui_root("", true),
-                    GlobalZIndex(0),
                     DespawnOnExit(Screen::Gameplay),
                     children![crate::theme::widget::button(
-                        "Quit to title",
+                        "To Title",
                         crate::menus::pause::quit_to_title
                     ),],
+                    Transform::from_xyz(0.0, 0.0, 11.0),
                 ));
             }
 
@@ -195,7 +240,16 @@ pub(super) fn plugin(app: &mut App) {
     ));
     app.add_systems(
         Update,
-        (test_new_minigame.in_set(AppSystems::RecordInput)).run_if(in_state(GameState::Interlude)),
+        (
+            Player::added.in_set(AppSystems::Update),
+            (
+                test_new_minigame.in_set(AppSystems::RecordInput),
+                Player::render.in_set(AppSystems::Update),
+            )
+                .run_if(in_state(GameState::Interlude))
+                .in_set(PausableSystems),
+        )
+            .run_if(app_is_loaded),
     );
 }
 
@@ -215,6 +269,7 @@ pub fn spawn_game(
         Name::new("Game"),
         Sprite::from_image(game_assets.interlude_background.clone()),
         Visibility::default(),
+        children![Player::new()],
     ));
 
     // Game UI
@@ -225,8 +280,6 @@ pub fn spawn_game(
     };
     let ui_text_layout = TextLayout::new_with_justify(Justify::Center);
     let ui_text_background = TextBackgroundColor::BLACK;
-
-    println!("DEBUG: SPAWNED");
 
     commands.spawn((
         DespawnOnExit(Screen::Gameplay),

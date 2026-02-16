@@ -17,6 +17,10 @@ pub struct GameAssets {
     pub interlude_background: Handle<Image>,
     #[asset(path = "images/lose_screen.png")]
     pub lose_screen: Handle<Image>,
+    #[asset(path = "images/interlude_player.png")]
+    pub player: Handle<Image>,
+    #[asset(texture_atlas_layout(tile_size_x = 128, tile_size_y = 80, columns = 3, rows = 1))]
+    pub player_layout: Handle<TextureAtlasLayout>,
     #[asset(path = "images/thermometer.png")]
     pub thermometer: Handle<Image>,
     #[asset(texture_atlas_layout(tile_size_x = 64, tile_size_y = 32, columns = 2, rows = 2))]

@@ -13,6 +13,15 @@ pub struct Thermometer {
     pub reading: f32,
 }
 
+impl Thermometer {
+    pub fn is_fever_high(&self) -> bool {
+        self.reading >= HIGH_FEVER
+    }
+    pub fn is_fever_low(&self) -> bool {
+        self.reading <= LOW_FEVER
+    }
+}
+
 pub enum Digit {
     Tens,
     Ones,
@@ -37,9 +46,9 @@ fn render_thermometer(
         return;
     };
 
-    if thermometer.reading >= HIGH_FEVER {
+    if thermometer.is_fever_high() {
         texture_atlas.index = 2;
-    } else if thermometer.reading <= LOW_FEVER {
+    } else if thermometer.is_fever_low() {
         texture_atlas.index = 0;
     } else {
         texture_atlas.index = 1;

@@ -33,23 +33,8 @@ impl Animation {
         }
     }
 
-    pub fn one_off(frames: &[usize]) -> Self {
-        Self {
-            animation_type: AnimationType::OneOff,
-            current_frame: frames[0],
-            frames: frames.iter().copied().collect(),
-            ..default()
-        }
-    }
-
     pub fn with_minigame(mut self, minigame_key: &'static str) -> Self {
         self.minigame_key = Some(minigame_key);
-
-        self
-    }
-
-    pub fn with_speed(mut self, ms: u64) -> Self {
-        self.timer.set_duration(Duration::from_millis(ms));
 
         self
     }

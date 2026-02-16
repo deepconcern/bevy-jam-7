@@ -11,7 +11,7 @@ use crate::{
     AppSystems, PausableSystems, app_is_loaded,
     game::{
         MAIN_STAGE_HEIGHT, MAIN_STAGE_WIDTH, animation::Animation, events::MinigameFinished,
-        game_assets::GameAssets, game_state::GameState, in_minigame,
+        game_assets::GameAssets, in_minigame,
     },
     screens::Screen,
 };
@@ -33,7 +33,6 @@ const STAR_SPAWN_SPEED: u64 = 500;
 
 // Boundries
 const STAR_BOUNDRY_BOX: Vec2 = Vec2::new(4.0, 8.0);
-const STAR_BOUNDRY_OFFSET: f32 = 0.0;
 const TELESCOPE_BOUNDRY_BOX: Vec2 = Vec2::new(10.0, 4.0);
 const TELESCOPE_BOUNDRY_OFFSET: f32 = 21.0;
 const WALKABLE_HORIZONTAL_BOUNDRY: f32 = 75.0;
@@ -173,7 +172,7 @@ fn check_observed(
     mut commands: Commands,
     galileo_query: Query<&Transform, With<Galileo>>,
     mut observe_manager: ResMut<ObserveManager>,
-    stage_query: Query<Entity, With<Stage>>,
+    // stage_query: Query<Entity, With<Stage>>,
     star_query: Query<(Entity, &Transform), With<Star>>,
 ) {
     let Ok(galileo_transform) = galileo_query.single() else {
@@ -188,9 +187,9 @@ fn check_observed(
         TELESCOPE_BOUNDRY_BOX,
     );
 
-    let Ok(stage_entity) = stage_query.single() else {
-        return;
-    };
+    // let Ok(stage_entity) = stage_query.single() else {
+    //     return;
+    // };
 
     for (star_entity, star_transform) in star_query {
         let star_aabb = Aabb2d::new(star_transform.translation.truncate(), STAR_BOUNDRY_BOX);
