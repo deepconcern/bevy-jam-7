@@ -59,7 +59,7 @@ pub fn label(text: impl Into<String>) -> impl Bundle {
         Widget,
         Name::new("Label"),
         Text(text.into()),
-        TextFont::from_font_size(24.0),
+        TextFont::from_font_size(18.0),
         TextColor(LABEL_TEXT),
     )
 }
@@ -75,11 +75,10 @@ where
         text,
         action,
         Node {
-            width: px(380),
-            height: px(80),
+            width: px(200),
+            height: px(32),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::MAX,
             ..default()
         },
     )
@@ -136,7 +135,7 @@ where
                         Widget,
                         Name::new("Button Text"),
                         Text(text),
-                        TextFont::from_font_size(40.0),
+                        TextFont::from_font_size(16.0),
                         TextColor(BUTTON_TEXT),
                         // Don't bubble picking events from the text up to the button.
                         Pickable::IGNORE,
