@@ -197,12 +197,7 @@ jobs:
           fi
 
           # Check if building for this platform is enabled.
-          echo 'is_platform_enabled=${{
-            (matrix.platform == 'web' && (inputs.build_for_web || (github.event_name == 'push' && (env.continuous_deployment_to_itch == 'true' || env.continuous_deployment_to_github_pages == 'true')))) ||
-            (matrix.platform == 'linux' && inputs.build_for_linux) ||
-            (matrix.platform == 'windows' && inputs.build_for_windows) ||
-            (matrix.platform == 'macos' && inputs.build_for_macos)
-          }}' >> "${GITHUB_ENV}"
+          echo 'is_platform_enabled=true' >> "${GITHUB_ENV}"
 
       - name: Checkout repository
         if: ${{ env.is_platform_enabled == 'true' }}
