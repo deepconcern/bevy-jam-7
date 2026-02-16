@@ -2,12 +2,22 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-use crate::{AppSystems, PausableSystems, game::game_state::GameState};
+use crate::{
+    AppSystems, PausableSystems,
+    game::{game_state::GameState, minigame_manager::MinigameManager},
+};
 
 const BASE_ANIMATION_SPEED: u64 = 250;
 
+#[derive(Clone, Eq, PartialEq)]
+enum AnimationType {
+    Looping,
+    OneOff,
+}
+
 #[derive(Clone, Component)]
 pub struct Animation {
+    animation_type: AnimationType,
     current_frame: usize,
     frames: Vec<usize>,
     minigame_key: Option<&'static str>,
@@ -15,15 +25,20 @@ pub struct Animation {
 }
 
 impl Animation {
-    pub fn new(frames: &[usize]) -> Self {
+    pub fn looping(frames: &[usize]) -> Self {
         Self {
-            current_frame: 0,
+            current_frame: frames[0],
             frames: frames.iter().copied().collect(),
-            minigame_key: None,
-            timer: Timer::new(
-                Duration::from_millis(BASE_ANIMATION_SPEED),
-                TimerMode::Repeating,
-            ),
+            ..default()
+        }
+    }
+
+    pub fn one_off(frames: &[usize]) -> Self {
+        Self {
+            animation_type: AnimationType::OneOff,
+            current_frame: frames[0],
+            frames: frames.iter().copied().collect(),
+            ..default()
         }
     }
 
@@ -40,14 +55,35 @@ impl Animation {
     }
 }
 
+impl Default for Animation {
+    fn default() -> Self {
+        Self {
+            animation_type: AnimationType::Looping,
+            current_frame: 0,
+            frames: Vec::new(),
+            minigame_key: None,
+            timer: Timer::new(
+                Duration::from_millis(BASE_ANIMATION_SPEED),
+                TimerMode::Repeating,
+            ),
+        }
+    }
+}
+
 fn animation_timer(
-    animation_query: Query<(&mut Animation, &mut Sprite)>,
+    animation_query: Query<(&mut Animation, Entity, &mut Sprite)>,
+    mut commands: Commands,
     game_state: Res<State<GameState>>,
+    minigame_manager: Res<MinigameManager>,
     time: Res<Time>,
 ) {
-    for (mut animation, mut sprite) in animation_query {
+    for (mut animation, entity, mut sprite) in animation_query {
         if let Some(minigame_key) = animation.minigame_key {
-            if game_state.get() != &GameState::Minigame(minigame_key.to_string()) {
+            if game_state.get() != &GameState::Minigame {
+                continue;
+            }
+
+            if Some(minigame_key) != minigame_manager.current_minigame_key {
                 continue;
             }
         }
@@ -62,6 +98,11 @@ fn animation_timer(
             animation.current_frame += 1;
 
             if animation.current_frame >= animation.frames.len() {
+                if animation.animation_type == AnimationType::OneOff {
+                    commands.entity(entity).remove::<Animation>();
+                    continue;
+                }
+
                 animation.current_frame = 0;
             }
 

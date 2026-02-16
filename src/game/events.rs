@@ -14,7 +14,7 @@ pub struct MinigameStart;
 
 #[derive(Debug, Event)]
 // Kicks of transition to minigame
-pub struct NewMinigame(pub String);
+pub struct NewMinigame;
 
 #[derive(Debug, Event)]
 pub struct InterludeStart;
@@ -25,7 +25,7 @@ pub struct ResultsSpawned(pub bool);
 
 #[derive(Debug, Event)]
 // Screen is covered, so spawn minigame
-pub struct SpawnMinigame(pub String);
+pub struct SpawnMinigame;
 
 #[derive(Debug, Event)]
 // Results are shown

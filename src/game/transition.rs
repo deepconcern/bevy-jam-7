@@ -13,6 +13,7 @@ use crate::{
         },
         game_assets::GameAssets,
         game_state::GameState,
+        minigame_manager::MinigameManager,
     },
     screens::Screen,
 };
@@ -32,9 +33,12 @@ pub enum TransitionState {
     Paused,
 }
 
-#[derive(Clone)]
+#[derive(Component)]
+pub struct TransitionText;
+
+#[derive(Clone, Eq, PartialEq)]
 pub enum TransitionType {
-    FadeIn(String),
+    FadeIn,
     FadeOut(bool),
 }
 
@@ -49,13 +53,14 @@ pub struct Transition {
 impl Transition {
     fn added(
         game_assets: Res<GameAssets>,
-        mut text_font_query: Query<&mut TextFont>,
+        minigame_manager: Res<MinigameManager>,
+        mut text_font_query: Query<(&mut Text2d, &mut TextFont)>,
         transition_assets: Res<TransitionAssets>,
         transition_query: Query<(&Children, &mut Sprite, &Transition), Added<Transition>>,
     ) {
         for (children, mut sprite, transition) in transition_query {
             let start_frame = match &transition.transition_type {
-                TransitionType::FadeIn(_) => FADE_IN_START_FRAME,
+                TransitionType::FadeIn => FADE_IN_START_FRAME,
                 TransitionType::FadeOut(_) => FADE_IN_END_FRAME,
             };
 
@@ -63,7 +68,7 @@ impl Transition {
                 continue;
             };
 
-            let Ok(mut text_font) = text_font_query.get_mut(*child) else {
+            let Ok((mut text_2d, mut text_font)) = text_font_query.get_mut(*child) else {
                 continue;
             };
 
@@ -72,13 +77,19 @@ impl Transition {
                 layout: transition_assets.transition_layout.clone(),
                 index: start_frame,
             });
+            if transition.transition_type == TransitionType::FadeIn {
+                text_2d.0 = minigame_manager
+                    .current_minigame_key
+                    .unwrap_or("minigame")
+                    .to_uppercase();
+            }
             text_font.font = game_assets.font.clone();
         }
     }
 
     fn new(transition_type: TransitionType) -> impl Bundle {
         let text = match &transition_type {
-            TransitionType::FadeIn(minigame) => minigame.to_uppercase(),
+            TransitionType::FadeIn => "MINIGAME".to_string(),
             TransitionType::FadeOut(has_won) => {
                 if *has_won {
                     "WIN!\nFEVER\nDOWN".to_string()
@@ -108,12 +119,13 @@ impl Transition {
                     offset: Vec2::new(5.0, 5.0),
                 },
                 TextColor(Color::BLACK),
+                TransitionText,
             )],
         )
     }
 
-    pub fn fade_in(minigame: &str) -> impl Bundle {
-        Self::new(TransitionType::FadeIn(minigame.to_string()))
+    pub fn fade_in() -> impl Bundle {
+        Self::new(TransitionType::FadeIn)
     }
 
     pub fn fade_out(has_won: bool) -> impl Bundle {
@@ -147,7 +159,7 @@ fn transition_animate(
     };
 
     let (end_frame, next_index) = match transition.transition_type {
-        TransitionType::FadeIn(_) => (FADE_IN_END_FRAME, texture_atlas.index + 1),
+        TransitionType::FadeIn => (FADE_IN_END_FRAME, texture_atlas.index + 1),
         TransitionType::FadeOut(_) => (FADE_IN_START_FRAME, texture_atlas.index - 1),
     };
 
@@ -158,8 +170,8 @@ fn transition_animate(
             if texture_atlas.index == FADE_IN_PAUSE_FRAME {
                 transition.state = TransitionState::Paused;
                 match &transition.transition_type {
-                    TransitionType::FadeIn(minigame) => {
-                        commands.trigger(SpawnMinigame(minigame.clone()));
+                    TransitionType::FadeIn => {
+                        commands.trigger(SpawnMinigame);
                     }
                     TransitionType::FadeOut(has_won) => {
                         commands.trigger(SpawnResults(*has_won));
@@ -174,9 +186,9 @@ fn transition_animate(
 
             if texture_atlas.index == end_frame {
                 match &transition.transition_type {
-                    TransitionType::FadeIn(minigame_key) => {
+                    TransitionType::FadeIn => {
                         commands.trigger(MinigameStart);
-                        next_state.set(GameState::Minigame(minigame_key.clone()));
+                        next_state.set(GameState::Minigame);
                     }
                     TransitionType::FadeOut(_) => {
                         commands.trigger(InterludeStart);

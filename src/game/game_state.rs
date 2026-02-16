@@ -5,6 +5,6 @@ pub enum GameState {
     GameOver,
     #[default]
     Interlude,
-    Minigame(String),
+    Minigame,
     Transitioning,
 }

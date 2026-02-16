@@ -11,12 +11,13 @@ use crate::{
     AppSystems, PausableSystems, app_is_loaded,
     game::{
         MAIN_STAGE_HEIGHT, MAIN_STAGE_WIDTH, animation::Animation, events::MinigameFinished,
-        game_assets::GameAssets, game_state::GameState,
+        game_assets::GameAssets, game_state::GameState, in_minigame,
     },
     screens::Screen,
 };
 
 pub const MINIGAME_KEY: &'static str = "observe";
+pub const SHOULD_LOSE_ON_TIMEOUT: bool = true;
 
 const COLLECT_AMOUNT: usize = 3;
 const STAR_LIFETIME: u64 = 2000;
@@ -26,9 +27,9 @@ const GALILEO_FRAMES: [usize; 2] = [0, 1];
 const STAR_FRAMES: [usize; 2] = [0, 1];
 
 // Speed
-const GALILEO_MOVEMENT_SPEED: f32 = 50.0;
+const GALILEO_MOVEMENT_SPEED: f32 = 75.0;
 const STAR_MOVEMENT_SPEED: f32 = 100.0;
-const STAR_SPAWN_SPEED: u64 = 1000;
+const STAR_SPAWN_SPEED: u64 = 500;
 
 // Boundries
 const STAR_BOUNDRY_BOX: Vec2 = Vec2::new(4.0, 8.0);
@@ -95,7 +96,7 @@ impl Star {
         transform.rotation = Quat::from_rotation_z(Vec2::Y.angle_to(target));
 
         (
-            Animation::new(&STAR_FRAMES).with_minigame(MINIGAME_KEY),
+            Animation::looping(&STAR_FRAMES).with_minigame(MINIGAME_KEY),
             Sprite {
                 image: observe_assets.star.clone(),
                 texture_atlas: Some(TextureAtlas {
@@ -311,7 +312,7 @@ pub fn spawn_minigame() -> impl Bundle {
         Stage::default(),
         children![
             (
-                Animation::new(&GALILEO_FRAMES),
+                Animation::looping(&GALILEO_FRAMES),
                 Galileo,
                 Transform::from_xyz(0.0, -24.0, 5.0)
             ),
@@ -343,7 +344,7 @@ pub fn plugin(app: &mut App) {
                 )
                     .in_set(AppSystems::Update),
             )
-                .run_if(in_state(GameState::Minigame(MINIGAME_KEY.to_string()))),)
+                .run_if(in_minigame(MINIGAME_KEY)),)
                 .in_set(PausableSystems),
         )
             .run_if(app_is_loaded),

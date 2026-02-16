@@ -5,6 +5,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_asset_loader::prelude::*;
+use rand::Rng;
 
 use crate::{
     AppSystems, PausableSystems, app_is_loaded,
@@ -13,14 +14,16 @@ use crate::{
 };
 
 pub const MINIGAME_KEY: &'static str = "relieve";
+pub const SHOULD_LOSE_ON_TIMEOUT: bool = true;
 
 const DROP_BOUNDING_BOX: Vec2 = Vec2::new(3.0, 4.0);
 const DROP_LIFETIME: u64 = 2000;
-const DROP_MOVEMENT_SPEED: f32 = 100.0;
+const DROP_MOVEMENT_SPEED: f32 = 125.0;
 const DROP_Y: f32 = 39.0;
-const HAND_MOVEMENT_SPEED: f32 = 50.0;
+const HAND_MOVEMENT_SPEED: f32 = 75.0;
 const HAND_Y: f32 = 56.0;
 const FLOWER_BOUNDING_BOX: Vec2 = Vec2::new(5.0, 23.0);
+const FLOWER_COUNT: usize = 3;
 const FLOWER_FRAMES: [usize; 3] = [0, 1, 2];
 const FLOWER_HP: usize = 3;
 const FLOWER_Y: f32 = -32.0;
@@ -187,9 +190,33 @@ pub struct RelieveAssets {
 struct Stage;
 
 impl Stage {
-    fn added(relieve_assets: Res<RelieveAssets>, stage_query: Query<&mut Sprite, Added<Stage>>) {
-        for mut sprite in stage_query {
+    fn added(
+        mut commands: Commands,
+        relieve_assets: Res<RelieveAssets>,
+        stage_query: Query<(Entity, &mut Sprite), Added<Stage>>,
+    ) {
+        for (stage_entity, mut sprite) in stage_query {
             sprite.image = relieve_assets.background.clone();
+
+            let total_spawnable_area_width = MOVEABLE_HORIZONTAL_BOUNDRY * 2.0;
+            let individual_spawnable_area_width = total_spawnable_area_width / FLOWER_COUNT as f32;
+
+            let mut rng = rand::rng();
+
+            for flower_index in 0..FLOWER_COUNT {
+                let spawnable_area_offset = flower_index as f32 * individual_spawnable_area_width;
+                let randomized_spawnable_window =
+                    individual_spawnable_area_width * rng.random::<f32>();
+
+                let flower_entity = commands
+                    .spawn(Flower::new(
+                        (spawnable_area_offset + randomized_spawnable_window)
+                            - MOVEABLE_HORIZONTAL_BOUNDRY,
+                    ))
+                    .id();
+
+                commands.entity(stage_entity).add_child(flower_entity);
+            }
         }
     }
 }
@@ -282,5 +309,5 @@ pub(super) fn plugin(app: &mut App) {
 }
 
 pub(super) fn spawn_minigame() -> impl Bundle {
-    (Stage, children![Hand::new(), Flower::new(0.0)])
+    (Stage, children![Hand::new()])
 }

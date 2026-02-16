@@ -2,6 +2,8 @@ mod animation;
 mod events;
 pub mod game_assets;
 mod game_state;
+mod minigame_manager;
+mod minigame_timer;
 mod minigames;
 mod transition;
 mod ui;
@@ -17,6 +19,8 @@ use crate::{
         },
         game_assets::GameAssets,
         game_state::GameState,
+        minigame_manager::MinigameManager,
+        minigame_timer::MinigameTimer,
         transition::Transition,
         ui::{GAME_OVER_FEVER, NO_FEVER, Thermometer, thermometer},
     },
@@ -43,15 +47,23 @@ struct MainStage;
 #[derive(Component)]
 struct Minigame;
 
-fn test_new_minigame(mut commands: Commands, input: Res<ButtonInput<KeyCode>>) {
+fn test_new_minigame(
+    mut commands: Commands,
+    input: Res<ButtonInput<KeyCode>>,
+    mut minigame_manager: ResMut<MinigameManager>,
+) {
     if input.just_pressed(KeyCode::Space) {
-        commands.trigger(NewMinigame(minigames::relieve::MINIGAME_KEY.to_string()));
+        minigame_manager.current_minigame_key = Some(minigames::control::MINIGAME_KEY);
+        commands.trigger(NewMinigame);
     }
 }
 
-pub fn in_minigame(minigame_key: &'static str) -> impl Fn(Res<State<GameState>>) -> bool {
-    move |game_state: Res<State<GameState>>| -> bool {
-        game_state.get() == &GameState::Minigame(minigame_key.to_string())
+pub fn in_minigame(
+    minigame_key: &'static str,
+) -> impl Fn(Res<State<GameState>>, Res<MinigameManager>) -> bool {
+    move |game_state: Res<State<GameState>>, minigame_manager: Res<MinigameManager>| -> bool {
+        game_state.get() == &GameState::Minigame
+            && Some(minigame_key) == minigame_manager.current_minigame_key
     }
 }
 
@@ -67,17 +79,19 @@ pub(super) fn plugin(app: &mut App) {
         },
     );
     app.add_observer(
-        |trigger: On<NewMinigame>,
+        |_: On<NewMinigame>,
          mut commands: Commands,
+         minigame_manager: Res<MinigameManager>,
          mut next_state: ResMut<NextState<GameState>>| {
-            commands.spawn(Transition::fade_in(&trigger.0));
+            commands.spawn(Transition::fade_in());
             next_state.set(GameState::Transitioning);
         },
     );
     app.add_observer(
-        |trigger: On<SpawnMinigame>,
+        |_: On<SpawnMinigame>,
          mut commands: Commands,
-         main_stage_query: Query<Entity, With<MainStage>>| {
+         main_stage_query: Query<Entity, With<MainStage>>,
+         minigame_manager: Res<MinigameManager>| {
             let Ok(main_stage_entity) = main_stage_query.single() else {
                 return;
             };
@@ -85,12 +99,18 @@ pub(super) fn plugin(app: &mut App) {
             let minigame_entity = commands
                 .spawn((
                     Minigame,
-                    Name::new(format!("Minigame \"{}\"", trigger.0)),
+                    Name::new(format!(
+                        "Minigame \"{}\"",
+                        minigame_manager.current_minigame_key.unwrap()
+                    )),
                     Transform::from_xyz(0.0, 0.0, 10.0),
                 ))
                 .id();
 
-            minigames::spawn_minigame(&trigger.0, &mut commands.entity(minigame_entity));
+            minigames::spawn_minigame(
+                minigame_manager.current_minigame_key.unwrap(),
+                &mut commands.entity(minigame_entity),
+            );
 
             commands
                 .entity(main_stage_entity)
@@ -167,6 +187,8 @@ pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
         animation::plugin,
         game_assets::plugin,
+        minigame_manager::plugin,
+        minigame_timer::plugin,
         minigames::plugin,
         transition::plugin,
         ui::plugin,
@@ -204,6 +226,8 @@ pub fn spawn_game(
     let ui_text_layout = TextLayout::new_with_justify(Justify::Center);
     let ui_text_background = TextBackgroundColor::BLACK;
 
+    println!("DEBUG: SPAWNED");
+
     commands.spawn((
         DespawnOnExit(Screen::Gameplay),
         Name::new("Game UI"),
@@ -217,6 +241,7 @@ pub fn spawn_game(
                 ui_font.clone(),
                 ui_text_background.clone(),
                 ui_text_layout.clone(),
+                children![MinigameTimer::new()],
             ),
             (
                 Text2d::new("FEVER"),
